@@ -417,7 +417,7 @@ export const register: Register = on => {
                   >
                     {` ${c.canal} `}
                   </Text>
-                  {c.nouveaux ? <Text color={ROSE} bold>{`●${c.nouveaux}`}</Text> : ''}
+                  {c.nouveaux ? <Text color={ROSE} bold>{`● ${c.nouveaux}`}</Text> : ''}
                 </Button>
               ))}
             </Box>
@@ -428,13 +428,13 @@ export const register: Register = on => {
                   <Text bold={c.membre === v.prive || c.nouveaux > 0} inverse={c.membre === v.prive} dimColor={c.membre !== v.prive && !c.nouveaux}>
                     {` ${c.nom} `}
                   </Text>
-                  {c.nouveaux ? <Text color={ROSE} bold>{`●${c.nouveaux}`}</Text> : ''}
+                  {c.nouveaux ? <Text color={ROSE} bold>{`● ${c.nouveaux}`}</Text> : ''}
                 </Button>
               ))}
               {v.prives.length > enVue.length ? (
                 <Button key="toutes" plain dimColor onPress={() => ouvrirAnnuaire($)}>
                   <Text underline>{`+${v.prives.length - enVue.length}`}</Text>
-                  {nonLusCaches ? <Text color={ROSE} bold>{` ●${nonLusCaches}`}</Text> : ''}
+                  {nonLusCaches ? <Text color={ROSE} bold>{` ● ${nonLusCaches}`}</Text> : ''}
                 </Button>
               ) : null}
               <Button key="annuaire" hotkey="m" plain dimColor={!v.annuaireOuvert} onPress={() => ouvrirAnnuaire($)}>
@@ -455,7 +455,7 @@ export const register: Register = on => {
                 {v.prives.slice(0, 20).map(c => (
                   <Button key={`conv-${c.membre}`} plain onPress={() => ouvrirPrive($, c.membre)}>
                     <Text bold>{c.nom}</Text>
-                    {c.nouveaux ? <Text color={ROSE} bold>{`  ●${c.nouveaux}`}</Text> : ''}
+                    {c.nouveaux ? <Text color={ROSE} bold>{`  ● ${c.nouveaux}`}</Text> : ''}
                   </Button>
                 ))}
               </Box>
