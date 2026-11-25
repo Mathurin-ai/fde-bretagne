@@ -22,7 +22,7 @@ Tapez `/fde`. La première fois, le panneau affiche une adresse et un code : ouv
 | Touche | Effet |
 |---|---|
 | `1` à `8` | ouvrir un canal |
-| `a` à `f` | ouvrir une conversation privée en cours |
+| `a` à `d` | ouvrir une conversation privée en cours |
 | `m` | écrire à un membre |
 | `n` | afficher les nouveaux messages arrivés |
 | `k` / `j` | messages plus anciens / plus récents |

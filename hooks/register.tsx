@@ -368,6 +368,12 @@ export const register: Register = on => {
       2 + lignes(m.texte) + (m.cite ? 1 : 0) + (m.points ?? []).reduce((n, p) => n + lignes(p, 4), 0) +
       (m.id && v.emojis.length ? 1 : 0)
     // Ce qui ne bouge pas : l'en-tête et les canaux (6), le titre du canal, la saisie, le pied.
+    // Sur la ligne des messages privés : la conversation ouverte, puis celles qui ont du nouveau, puis les plus
+    // récentes, quatre au plus. Les autres sont derrière « +N », dans la liste « Écrire à un membre ».
+    const enVue = [...v.prives]
+      .sort((x, y) => Number(y.membre === v.prive) - Number(x.membre === v.prive) || Number(y.nouveaux > 0) - Number(x.nouveaux > 0))
+      .slice(0, 4)
+    const nonLusCaches = v.prives.filter(c => !enVue.includes(c)).reduce((n, c) => n + c.nouveaux, 0)
     const intitule = v.prive ? v.nomPrive : v.ouvert
     // Ce qui est arrivé dans ce qu'on a sous les yeux depuis qu'on l'a ouvert : la relève le compte, sans le marquer lu.
     const arrives = v.prive ? v.prives.find(c => c.membre === v.prive)?.nouveaux ?? 0 : actuel?.nouveaux ?? 0
@@ -416,14 +422,20 @@ export const register: Register = on => {
             </Box>
             <Box flexWrap="wrap" columnGap={1}>
               <Text dimColor>✉</Text>
-              {v.prives.slice(0, 6).map((c, i) => (
-                <Button key={`prive-${c.membre}`} hotkey={'abcdef'.charAt(i)} plain onPress={() => ouvrirPrive($, c.membre)}>
+              {enVue.map((c, i) => (
+                <Button key={`prive-${c.membre}`} hotkey={'abcd'.charAt(i)} plain onPress={() => ouvrirPrive($, c.membre)}>
                   <Text bold={c.membre === v.prive || c.nouveaux > 0} inverse={c.membre === v.prive} dimColor={c.membre !== v.prive && !c.nouveaux}>
                     {` ${c.nom} `}
                   </Text>
                   {c.nouveaux ? <Text color={ROSE} bold>{`●${c.nouveaux}`}</Text> : ''}
                 </Button>
               ))}
+              {v.prives.length > enVue.length ? (
+                <Button key="toutes" plain dimColor onPress={() => ouvrirAnnuaire($)}>
+                  <Text underline>{`+${v.prives.length - enVue.length}`}</Text>
+                  {nonLusCaches ? <Text color={ROSE} bold>{` ●${nonLusCaches}`}</Text> : ''}
+                </Button>
+              ) : null}
               <Button key="annuaire" hotkey="m" plain dimColor={!v.annuaireOuvert} onPress={() => ouvrirAnnuaire($)}>
                 <Text underline>écrire à un membre</Text>
               </Button>
@@ -436,12 +448,23 @@ export const register: Register = on => {
               <Text bold color={ACCENT}>✉ Écrire à un membre</Text>
               <Text dimColor>{'  Une conversation à deux, que les autres ne voient pas.'}</Text>
             </Text>
+            {v.prives.length && !v.annuaireMot ? (
+              <Box flexDirection="column" marginTop={1}>
+                <Text dimColor>Vos conversations</Text>
+                {v.prives.slice(0, 20).map(c => (
+                  <Button key={`conv-${c.membre}`} plain onPress={() => ouvrirPrive($, c.membre)}>
+                    <Text bold>{c.nom}</Text>
+                    {c.nouveaux ? <Text color={ROSE} bold>{`  ●${c.nouveaux}`}</Text> : ''}
+                  </Button>
+                ))}
+              </Box>
+            ) : null}
             <Box marginTop={1}>
               {terminal ? <Text color={ACCENT} bold>{'› '}</Text> : ''}
               <Box flexGrow={1} flexDirection="column">
                 <Input
                   key={`chercher-${v.annuaireMot}`}
-                  placeholder={`Chercher par nom ou par activité${terminal ? ', Entrée pour chercher' : ''}`}
+                  placeholder="Chercher un membre par nom ou par activité"
                   value={v.annuaireMot}
                   submitLabel="Chercher"
                   onSubmit={mot => { void ouvrirAnnuaire($, mot) }}
@@ -550,7 +573,7 @@ export const register: Register = on => {
               <Box flexGrow={1} flexDirection="column">
                 <Input
                   key={`saisie-${v.ouvert || v.prive}-${v.envois}`}
-                  placeholder={`${v.prive ? `Écrire à ${v.nomPrive}` : `Écrire dans #${v.ouvert}`}${terminal ? ', Entrée pour envoyer' : ''}`}
+                  placeholder={v.prive ? `Écrire à ${v.nomPrive}` : `Écrire dans #${v.ouvert}`}
                   value=""
                   autoFocus
                   rows={2}
