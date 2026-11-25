@@ -7,16 +7,16 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Canal, Message, Prive, Reaction, Vue } from '../types'
+import type { Canal, Membre, Message, Prive, Reaction, Vue } from '../types'
 
 const SITE = 'https://fde-bretagne.fr'
 const PANNEAU = 'fde-bretagne'
 const VIDE: Vue = {
-  etat: 'vide', code: '', url: '', canaux: [], prives: [], ouvert: '', prive: 0, nomPrive: '', ditPrive: '', messages: [], note: '', avis: '',
+  etat: 'vide', code: '', url: '', canaux: [], prives: [], ouvert: '', prive: 0, nomPrive: '', ditPrive: '', annuaire: [], annuaireOuvert: false, messages: [], note: '', avis: '',
   ecriture: false, emojis: [], choix: 0, envois: 0, prenom: '', jour: 0, decalage: 0,
 }
 
-const vue = atom({ plugin: 'fde-bretagne', key: 'vue' } as const, VIDE, { shape: 'vue-5' })
+const vue = atom({ plugin: 'fde-bretagne', key: 'vue' } as const, VIDE, { shape: 'vue-6' })
 
 // Deuxième filet, après celui du serveur : aucun caractère de commande ne va au terminal.
 const propre = (t: unknown) => String(t ?? '').replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
@@ -33,11 +33,9 @@ const SIGNES: Record<string, string> = {
   outillage: '🧰', entraide: '🛟', missions: '💼', rencontres: '🍻',
 }
 const PHRASES = [
-  "Ici on met l'IA en service, pas en slide.",
   'Du beurre salé dans le pipeline.',
   'Kouign-amann et pull requests.',
   'Ça déploie fort, même par crachin.',
-  'Moins de démos, plus de mises en prod.',
   "Une galette, un café, un déploiement.",
   'Le vendredi, on déploie quand même.',
 ]
@@ -116,6 +114,7 @@ async function ouvrirCanal($: any, cle: string) {
     avis: '',
     choix: 0,
     decalage: 0,
+    annuaireOuvert: false,
     canaux: v.canaux.map(c => (c.canal === cle ? { ...c, nouveaux: 0 } : c)),
   }))
   // Tout tient dans la fenêtre du panneau : on la ramène en haut, sur le logo et les canaux.
@@ -142,9 +141,23 @@ async function ouvrirPrive($: any, membre: number) {
     avis: '',
     choix: 0,
     decalage: 0,
+    annuaireOuvert: false,
     prives: v.prives.map(c => (c.membre === membre ? { ...c, nouveaux: 0 } : c)),
   }))
   $.clock.after(200, () => $.ui.scroll({ in: PANNEAU, to: 'start' }))
+}
+
+// Déplier la liste des membres à qui écrire, à la place du fil.
+async function ouvrirAnnuaire($: any) {
+  const r = await appeler($, '/api/membres')
+  if (r.status === 401) return demander($)
+  if (r.status !== 200) return update($, vue, v => ({ ...v, avis: 'Le site ne répond pas. Réessayez.' }))
+  const annuaire: Membre[] = (Array.isArray(r.donnees.membres) ? r.donnees.membres : []).map((m: Membre) => ({
+    membre: Number(m.membre) || 0,
+    nom: propre(m.nom),
+    sert_a: propre(m.sert_a),
+  }))
+  await update($, vue, v => ({ ...v, annuaire, annuaireOuvert: true, avis: '' }))
 }
 
 // Recharger ce qui est ouvert, canal ou conversation.
@@ -288,7 +301,7 @@ export const register: Register = on => {
     const terminal = e.surface === 'terminal'
 
     // L'hermine du logo, en demi-blocs : trois points de couleur, puis la moucheture.
-    const logo = 'Svg' in elements ? (
+    const logo = !terminal && 'Svg' in elements ? (
       <Box marginRight={2} flexShrink={0}>
         <elements.Svg source={LOGO_SVG} alt="Logo de FDE Bretagne" width={44} height={44} />
       </Box>
@@ -357,7 +370,7 @@ export const register: Register = on => {
     // Ce qui ne bouge pas : l'en-tête et les canaux (6), le titre du canal, la saisie, le pied.
     const intitule = v.prive ? v.nomPrive : v.ouvert
     const sousTitre = v.prive ? v.ditPrive || 'Message privé' : actuel?.sert_a ?? ''
-    const fixe = 5 + (v.prives.length ? 1 : 0) + lignes(`${intitule}     ${sousTitre}`) + (v.ecriture ? 3 : v.note ? 2 : 0) + 2
+    const fixe = 6 + lignes(`${intitule}     ${sousTitre}`) + (v.ecriture ? 3 : v.note ? 2 : 0) + 2
     const place = Math.max(5, (e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30) - fixe)
     // La fenêtre sur le fil : les derniers messages qui tiennent, moins ceux qu'on a laissés en dessous en remontant.
     const fin = Math.max(Math.min(1, v.messages.length), v.messages.length - v.decalage)
@@ -399,106 +412,131 @@ export const register: Register = on => {
                 </Button>
               ))}
             </Box>
-            {v.prives.length ? (
-              <Box flexWrap="wrap" columnGap={1}>
-                <Text dimColor>✉</Text>
-                {v.prives.slice(0, 6).map((c, i) => (
-                  <Button key={`prive-${c.membre}`} hotkey={'abcdef'.charAt(i)} plain onPress={() => ouvrirPrive($, c.membre)}>
-                    <Text bold={c.membre === v.prive || c.nouveaux > 0} inverse={c.membre === v.prive} dimColor={c.membre !== v.prive && !c.nouveaux}>
-                      {` ${c.nom} `}
-                    </Text>
-                    {c.nouveaux ? <Text color={ROSE} bold>{`●${c.nouveaux}`}</Text> : ''}
-                  </Button>
-                ))}
-              </Box>
-            ) : null}
+            <Box flexWrap="wrap" columnGap={1}>
+              <Text dimColor>✉</Text>
+              {v.prives.slice(0, 6).map((c, i) => (
+                <Button key={`prive-${c.membre}`} hotkey={'abcdef'.charAt(i)} plain onPress={() => ouvrirPrive($, c.membre)}>
+                  <Text bold={c.membre === v.prive || c.nouveaux > 0} inverse={c.membre === v.prive} dimColor={c.membre !== v.prive && !c.nouveaux}>
+                    {` ${c.nom} `}
+                  </Text>
+                  {c.nouveaux ? <Text color={ROSE} bold>{`●${c.nouveaux}`}</Text> : ''}
+                </Button>
+              ))}
+              <Button key="annuaire" hotkey="m" plain dimColor={!v.annuaireOuvert} onPress={() => ouvrirAnnuaire($)}>
+                <Text underline>écrire à un membre</Text>
+              </Button>
+            </Box>
           </Box>
         </Box>
-        <Text>
-          <Text bold color={ACCENT}>{v.prive ? '✉' : SIGNES[v.ouvert] ?? '#'} {intitule}</Text>
-          {sousTitre ? <Text dimColor>{`  ${sousTitre}`}</Text> : ''}
-        </Text>
-        {v.avis ? <Text color={ROSE}>{v.avis}</Text> : null}
-        {debut > 0 ? (
-          <Button key="avant" hotkey="k" plain dimColor onPress={() => update($, vue, x => ({ ...x, decalage: Math.min(x.messages.length - 1, x.decalage + pas) }))}>
-            <Text underline>{`↑ ${debut} plus ancien${debut > 1 ? 's' : ''}`}</Text>
-          </Button>
-        ) : null}
-        {fil.length === 0 && (
-          <Box marginTop={1}>
-            <Text dimColor italic>{v.prive ? 'Aucun message pour l\'instant. Seuls vous deux verrez cette conversation.' : VIDES[(v.ouvert.length + v.jour) % VIDES.length]}</Text>
-          </Box>
-        )}
-        {fil.map(ligne =>
-          ligne.jour ? (
-            <Box marginTop={1}>
-              <Text dimColor>── {ligne.jour} ──</Text>
-            </Box>
-          ) : (
+        {v.annuaireOuvert ? (
+          <Box flexDirection="column">
+            <Text>
+              <Text bold color={ACCENT}>✉ Écrire à un membre</Text>
+              <Text dimColor>{'  Une conversation à deux, que les autres ne voient pas.'}</Text>
+            </Text>
+            {v.annuaire.length === 0 && (
+              <Box marginTop={1}>
+                <Text dimColor italic>Vous êtes la première personne ici. Les autres membres apparaîtront dans cette liste.</Text>
+              </Box>
+            )}
             <Box flexDirection="column" marginTop={1}>
-              <Text>
-                <Text bold color={TEINTES[(ligne.m?.teinte ?? 0) % TEINTES.length]}>{ligne.m?.auteur}</Text>
-                <Text dimColor>  {ligne.m?.heure}</Text>
-              </Text>
-              {ligne.m?.cite ? <Text dimColor>│ {ligne.m.cite}</Text> : null}
-              <Text>{ligne.m?.texte}</Text>
-              {(ligne.m?.points ?? []).map(p => (
-                <Text dimColor>  · {p}</Text>
+              {v.annuaire.slice(0, 30).map(m => (
+                <Button key={`membre-${m.membre}`} plain onPress={() => ouvrirPrive($, m.membre)}>
+                  <Text bold>{m.nom}</Text>
+                  {m.sert_a ? <Text dimColor>{`  ${m.sert_a}`}</Text> : ''}
+                </Button>
               ))}
-              {ligne.m?.id && v.emojis.length ? (
-                <Box gap={2} marginTop={terminal ? 0 : 1}>
-                  {(ligne.m.reactions ?? []).map(x => (
-                    <Button key={`r-${ligne.m?.id}-${x.emoji}`} plain onPress={() => reagir($, ligne.m?.id as number, x.emoji)}>
-                      <Text color={x.moi ? CIEL : undefined} bold={x.moi}>{`${x.emoji} ${x.n}`}</Text>
-                    </Button>
-                  ))}
-                  {v.choix === ligne.m.id ? (
-                    v.emojis.map(x => (
-                      <Button key={`c-${ligne.m?.id}-${x}`} plain label={x} onPress={() => reagir($, ligne.m?.id as number, x)} />
-                    ))
-                  ) : (
-                    <Button
-                      key={`plus-${ligne.m.id}`}
-                      plain
-                      dimColor
-                      onPress={() => update($, vue, x => ({ ...x, choix: ligne.m?.id as number }))}
-                    >
-                      <Text underline>+ réagir</Text>
-                    </Button>
-                  )}
-                </Box>
-              ) : null}
             </Box>
-          ),
-        )}
-        {v.decalage > 0 ? (
-          <Box marginTop={1}>
-            <Button key="apres" hotkey="j" plain dimColor onPress={() => update($, vue, x => ({ ...x, decalage: Math.max(0, x.decalage - pas) }))}>
-              <Text underline>{`↓ ${v.decalage} plus récent${v.decalage > 1 ? 's' : ''}`}</Text>
+          </Box>
+        ) : (
+          <Box flexDirection="column">
+          <Text>
+            <Text bold color={ACCENT}>{v.prive ? '✉' : SIGNES[v.ouvert] ?? '#'} {intitule}</Text>
+            {sousTitre ? <Text dimColor>{`  ${sousTitre}`}</Text> : ''}
+          </Text>
+          {v.avis ? <Text color={ROSE}>{v.avis}</Text> : null}
+          {debut > 0 ? (
+            <Button key="avant" hotkey="k" plain dimColor onPress={() => update($, vue, x => ({ ...x, decalage: Math.min(x.messages.length - 1, x.decalage + pas) }))}>
+              <Text underline>{`↑ ${debut} plus ancien${debut > 1 ? 's' : ''}`}</Text>
             </Button>
-          </Box>
-        ) : null}
-        {v.note ? (
-          <Box marginTop={1}>
-            <Text dimColor italic>{v.note}</Text>
-          </Box>
-        ) : null}
-        {v.ecriture ? (
-          <Box marginTop={1} width="100%">
-            {terminal ? <Text color={ACCENT} bold>{'› '}</Text> : ''}
-            <Box flexGrow={1} flexDirection="column">
-              <Input
-                key={`saisie-${v.ouvert || v.prive}-${v.envois}`}
-                placeholder={`${v.prive ? `Écrire à ${v.nomPrive}` : `Écrire dans #${v.ouvert}`}${terminal ? ', Entrée pour envoyer' : ''}`}
-                value=""
-                autoFocus
-                rows={2}
-                submitLabel="Envoyer"
-                onSubmit={texte => { void envoyer($, texte) }}
-              />
+          ) : null}
+          {fil.length === 0 && (
+            <Box marginTop={1}>
+              <Text dimColor italic>{v.prive ? 'Aucun message pour l\'instant. Seuls vous deux verrez cette conversation.' : VIDES[(v.ouvert.length + v.jour) % VIDES.length]}</Text>
             </Box>
+          )}
+          {fil.map(ligne =>
+            ligne.jour ? (
+              <Box marginTop={1}>
+                <Text dimColor>── {ligne.jour} ──</Text>
+              </Box>
+            ) : (
+              <Box flexDirection="column" marginTop={1}>
+                <Text>
+                  <Text bold color={TEINTES[(ligne.m?.teinte ?? 0) % TEINTES.length]}>{ligne.m?.auteur}</Text>
+                  <Text dimColor>  {ligne.m?.heure}</Text>
+                </Text>
+                {ligne.m?.cite ? <Text dimColor>│ {ligne.m.cite}</Text> : null}
+                <Text>{ligne.m?.texte}</Text>
+                {(ligne.m?.points ?? []).map(p => (
+                  <Text dimColor>  · {p}</Text>
+                ))}
+                {ligne.m?.id && v.emojis.length ? (
+                  <Box gap={2} marginTop={terminal ? 0 : 1}>
+                    {(ligne.m.reactions ?? []).map(x => (
+                      <Button key={`r-${ligne.m?.id}-${x.emoji}`} plain onPress={() => reagir($, ligne.m?.id as number, x.emoji)}>
+                        <Text color={x.moi ? CIEL : undefined} bold={x.moi}>{`${x.emoji} ${x.n}`}</Text>
+                      </Button>
+                    ))}
+                    {v.choix === ligne.m.id ? (
+                      v.emojis.map(x => (
+                        <Button key={`c-${ligne.m?.id}-${x}`} plain label={x} onPress={() => reagir($, ligne.m?.id as number, x)} />
+                      ))
+                    ) : (
+                      <Button
+                        key={`plus-${ligne.m.id}`}
+                        plain
+                        dimColor
+                        onPress={() => update($, vue, x => ({ ...x, choix: ligne.m?.id as number }))}
+                      >
+                        <Text underline>+ réagir</Text>
+                      </Button>
+                    )}
+                  </Box>
+                ) : null}
+              </Box>
+            ),
+          )}
+          {v.decalage > 0 ? (
+            <Box marginTop={1}>
+              <Button key="apres" hotkey="j" plain dimColor onPress={() => update($, vue, x => ({ ...x, decalage: Math.max(0, x.decalage - pas) }))}>
+                <Text underline>{`↓ ${v.decalage} plus récent${v.decalage > 1 ? 's' : ''}`}</Text>
+              </Button>
+            </Box>
+          ) : null}
+          {v.note ? (
+            <Box marginTop={1}>
+              <Text dimColor italic>{v.note}</Text>
+            </Box>
+          ) : null}
+          {v.ecriture ? (
+            <Box marginTop={1} width="100%">
+              {terminal ? <Text color={ACCENT} bold>{'› '}</Text> : ''}
+              <Box flexGrow={1} flexDirection="column">
+                <Input
+                  key={`saisie-${v.ouvert || v.prive}-${v.envois}`}
+                  placeholder={`${v.prive ? `Écrire à ${v.nomPrive}` : `Écrire dans #${v.ouvert}`}${terminal ? ', Entrée pour envoyer' : ''}`}
+                  value=""
+                  autoFocus
+                  rows={2}
+                  submitLabel="Envoyer"
+                  onSubmit={texte => { void envoyer($, texte) }}
+                />
+              </Box>
+            </Box>
+          ) : null}
           </Box>
-        ) : null}
+        )}
         <Box marginTop={1} gap={3}>
           <Button key="rafraichir" hotkey="r" plain dimColor onPress={() => charger($)}>
             <Text underline>Rafraîchir</Text>

@@ -23,6 +23,7 @@ Tapez `/fde`. La première fois, le panneau affiche une adresse et un code : ouv
 |---|---|
 | `1` à `8` | ouvrir un canal |
 | `a` à `f` | ouvrir une conversation privée en cours |
+| `m` | écrire à un membre |
 | `k` / `j` | messages plus anciens / plus récents |
 | `r` | rafraîchir |
 | Échap | rendre le clavier à Claude Code |

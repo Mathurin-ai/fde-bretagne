@@ -1,6 +1,8 @@
 export type Canal = { canal: string; nom: string; sert_a: string; messages: number; nouveaux: number }
 // Une conversation privée en cours : l'autre membre, et ce qu'on n'a pas lu.
 export type Prive = { membre: number; nom: string; nouveaux: number }
+// Un membre à qui écrire, dans la liste « Écrire à un membre ».
+export type Membre = { membre: number; nom: string; sert_a: string }
 export type Reaction = { emoji: string; n: number; moi: boolean }
 export type Message = {
   id?: number
@@ -24,6 +26,9 @@ export type Vue = {
   ouvert: string
   prive: number
   nomPrive: string
+  // La liste « Écrire à un membre », quand elle est dépliée à la place du fil.
+  annuaire: Membre[]
+  annuaireOuvert: boolean
   ditPrive: string
   messages: Message[]
   note: string
