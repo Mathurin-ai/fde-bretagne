@@ -402,17 +402,19 @@ export const register: Register = on => {
           </Box>
         ) : null}
         {v.ecriture ? (
-          <Box marginTop={1}>
-            <Text color={ABRICOT} bold>{'› '}</Text>
-            <Input
-              key={`saisie-${v.ouvert}-${v.envois}`}
-              placeholder={`Écrire dans #${v.ouvert}, Entrée pour envoyer`}
-              value=""
-              autoFocus
-              rows={2}
-              submitLabel="envoyer"
-              onSubmit={texte => { void envoyer($, texte) }}
-            />
+          <Box marginTop={1} width="100%">
+            {e.surface === 'terminal' ? <Text color={ABRICOT} bold>{'› '}</Text> : ''}
+            <Box flexGrow={1} flexDirection="column">
+              <Input
+                key={`saisie-${v.ouvert}-${v.envois}`}
+                placeholder={e.surface === 'terminal' ? `Écrire dans #${v.ouvert}, Entrée pour envoyer` : `Écrire dans #${v.ouvert}`}
+                value=""
+                autoFocus
+                rows={2}
+                submitLabel="Envoyer"
+                onSubmit={texte => { void envoyer($, texte) }}
+              />
+            </Box>
           </Box>
         ) : null}
         <Box marginTop={1} gap={3}>
