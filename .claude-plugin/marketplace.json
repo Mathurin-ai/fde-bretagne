@@ -1,5 +1,23 @@
 {
   "name": "fde-bretagne",
-  "owner": { "name": "Mathurin" },
-  "plugins": [{ "name": "fde-bretagne", "source": "./" }]
+  "description": "Le plugin de FDE Bretagne, la communauté des forward deployed engineers de Bretagne.",
+  "owner": {
+    "name": "Mathurin.ai",
+    "url": "https://mathurin.ai"
+  },
+  "plugins": [
+    {
+      "name": "fde-bretagne",
+      "source": "./",
+      "displayName": "FDE Bretagne",
+      "description": "FDE Bretagne dans Claude Code : le connecteur du groupe, et ses canaux dans un panneau à côté de la conversation. Le modèle ne lit pas les messages.",
+      "author": {
+        "name": "Mathurin.ai",
+        "url": "https://mathurin.ai"
+      },
+      "homepage": "https://fde-bretagne.fr",
+      "license": "MIT",
+      "category": "community"
+    }
+  ]
 }

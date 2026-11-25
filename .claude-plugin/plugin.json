@@ -1,12 +1,16 @@
 {
   "name": "fde-bretagne",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "FDE Bretagne dans Claude Code : le connecteur du groupe, et ses canaux dans un panneau à côté de la conversation. Le modèle ne lit pas les messages.",
   "author": {
-    "name": "Mathurin"
+    "name": "Mathurin.ai",
+    "url": "https://mathurin.ai"
   },
   "license": "MIT",
   "homepage": "https://fde-bretagne.fr",
   "types": "./types/index.d.ts",
-  "privacyPolicyUrl": "https://fde-bretagne.fr/mentions"
+  "privacyPolicyUrl": "https://fde-bretagne.fr/mentions",
+  "displayName": "FDE Bretagne",
+  "repository": "https://github.com/Mathurin-ai/fde-bretagne",
+  "icon": "./.claude-plugin/icon.png"
 }
