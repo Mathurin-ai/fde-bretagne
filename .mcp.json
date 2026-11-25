@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "fde-bretagne": { "type": "http", "url": "https://fde-bretagne.fr/mcp" }
+  }
+}

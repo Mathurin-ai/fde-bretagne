@@ -1,9 +1,12 @@
 {
   "name": "fde-bretagne",
   "version": "0.1.0",
-  "description": "Les canaux de FDE Bretagne dans un panneau de Claude Code, à côté de la conversation. Le modèle ne lit pas les messages.",
-  "author": { "name": "Mathurin" },
+  "description": "FDE Bretagne dans Claude Code : le connecteur du groupe, et ses canaux dans un panneau à côté de la conversation. Le modèle ne lit pas les messages.",
+  "author": {
+    "name": "Mathurin"
+  },
   "license": "MIT",
   "homepage": "https://fde-bretagne.fr",
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "privacyPolicyUrl": "https://fde-bretagne.fr/mentions"
 }
