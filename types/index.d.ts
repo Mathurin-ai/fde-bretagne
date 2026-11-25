@@ -40,6 +40,8 @@ export type Vue = {
   avis: string
   ecriture: boolean
   emojis: string[]
+  // Le message auquel on est en train de répondre, ou 0.
+  reponseA: number
   // Le message dont le choix de réactions est déplié, ou 0.
   choix: number
   // Change à chaque envoi : le champ de saisie repart vide.

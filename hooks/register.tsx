@@ -13,10 +13,10 @@ const SITE = 'https://fde-bretagne.fr'
 const PANNEAU = 'fde-bretagne'
 const VIDE: Vue = {
   etat: 'vide', code: '', url: '', canaux: [], prives: [], ouvert: '', prive: 0, nomPrive: '', ditPrive: '', annuaire: [], annuaireOuvert: false, annuaireTotal: 0, annuaireMot: '', messages: [], note: '', avis: '',
-  ecriture: false, emojis: [], choix: 0, envois: 0, prenom: '', jour: 0, decalage: 0,
+  ecriture: false, emojis: [], choix: 0, reponseA: 0, envois: 0, prenom: '', jour: 0, decalage: 0,
 }
 
-const vue = atom({ plugin: 'fde-bretagne', key: 'vue' } as const, VIDE, { shape: 'vue-7' })
+const vue = atom({ plugin: 'fde-bretagne', key: 'vue' } as const, VIDE, { shape: 'vue-8' })
 
 // Deuxième filet, après celui du serveur : aucun caractère de commande ne va au terminal.
 const propre = (t: unknown) => String(t ?? '').replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
@@ -114,6 +114,7 @@ async function ouvrirCanal($: any, cle: string) {
     emojis: (r.donnees.emojis ?? []).map(propre),
     avis: '',
     choix: 0,
+    reponseA: 0,
     decalage: 0,
     annuaireOuvert: false,
     canaux: v.canaux.map(c => (c.canal === cle ? { ...c, nouveaux: 0 } : c)),
@@ -141,6 +142,7 @@ async function ouvrirPrive($: any, membre: number) {
     emojis: [],
     avis: '',
     choix: 0,
+    reponseA: 0,
     decalage: 0,
     annuaireOuvert: false,
     prives: v.prives.map(c => (c.membre === membre ? { ...c, nouveaux: 0 } : c)),
@@ -159,6 +161,13 @@ async function ouvrirAnnuaire($: any, mot = '') {
     sert_a: propre(m.sert_a),
   }))
   await update($, vue, v => ({ ...v, annuaire, annuaireOuvert: true, annuaireTotal: Number(r.donnees.total) || annuaire.length, annuaireMot: propre(r.donnees.q), avis: '' }))
+}
+
+// Répondre à un message du canal : le champ de saisie s'ouvre dessus, même là où seuls les animateurs ouvrent un sujet.
+async function repondreA($: any, message: number) {
+  await update($, vue, v => ({ ...v, reponseA: message, choix: 0 }))
+  const v = await read($, vue)
+  $.clock.after(250, () => $.ui.focus({ requestId: PANNEAU, key: `saisie-${v.ouvert}-${v.envois}-${message}` }))
 }
 
 // Recharger ce qui est ouvert, canal ou conversation.
@@ -194,10 +203,10 @@ async function relever($: any) {
 async function envoyer($: any, texte: string) {
   const v = await read($, vue)
   if (!texte.trim() || (!v.ouvert && !v.prive)) return
-  const r = await appeler($, v.prive ? `/api/prives/${v.prive}` : `/api/canaux/${encodeURIComponent(v.ouvert)}`, { texte })
+  const r = await appeler($, v.prive ? `/api/prives/${v.prive}` : `/api/canaux/${encodeURIComponent(v.ouvert)}`, v.reponseA && !v.prive ? { texte, reponse_a: v.reponseA } : { texte })
   if (r.status === 401) return demander($)
   if (r.status !== 200) return update($, vue, x => ({ ...x, avis: propre(r.donnees?.erreur) || "Le message n'est pas parti." }))
-  await update($, vue, x => ({ ...x, envois: x.envois + 1 }))
+  await update($, vue, x => ({ ...x, envois: x.envois + 1, reponseA: 0 }))
   $.ui.toast(v.prive ? `Message parti pour ${v.nomPrive}` : `Message parti dans #${v.ouvert}`)
   // Le champ vient d'être redessiné vide : on y remet le curseur, pour enchaîner.
   const suite = await read($, vue)
@@ -379,7 +388,9 @@ export const register: Register = on => {
     // Ce qui est arrivé dans ce qu'on a sous les yeux depuis qu'on l'a ouvert : la relève le compte, sans le marquer lu.
     const arrives = v.prive ? v.prives.find(c => c.membre === v.prive)?.nouveaux ?? 0 : actuel?.nouveaux ?? 0
     const sousTitre = v.prive ? v.ditPrive || 'Message privé' : actuel?.sert_a ?? ''
-    const fixe = 6 + lignes(`${intitule}     ${sousTitre}`) + (v.ecriture ? 3 : v.note ? 2 : 0) + 2
+    // Le message auquel on répond, s'il est encore dans le fil.
+    const cible = v.reponseA && !v.prive ? v.messages.find(m => m.id === v.reponseA) : undefined
+    const fixe = 6 + lignes(`${intitule}     ${sousTitre}`) + (v.ecriture || cible ? 3 : 0) + (cible ? 1 : 0) + (v.note ? 2 : 0) + 2
     const place = Math.max(5, (e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30) - fixe)
     // La fenêtre sur le fil : les derniers messages qui tiennent, moins ceux qu'on a laissés en dessous en remontant.
     const fin = Math.max(Math.min(1, v.messages.length), v.messages.length - v.decalage)
@@ -557,6 +568,9 @@ export const register: Register = on => {
                         <Text underline>+ réagir</Text>
                       </Button>
                     )}
+                    <Button key={`rep-${ligne.m.id}`} plain dimColor onPress={() => repondreA($, ligne.m?.id as number)}>
+                      <Text underline>répondre</Text>
+                    </Button>
                   </Box>
                 ) : null}
               </Box>
@@ -574,13 +588,21 @@ export const register: Register = on => {
               <Text dimColor italic>{v.note}</Text>
             </Box>
           ) : null}
-          {v.ecriture ? (
-            <Box marginTop={1} width="100%">
+          {cible ? (
+            <Box marginTop={1} columnGap={2}>
+              <Text dimColor>{`↳ En réponse à ${cible.auteur} : ${cible.texte.replace(/\s+/g, ' ').slice(0, 50)}${cible.texte.length > 50 ? '…' : ''}`}</Text>
+              <Button key="annuler-reponse" plain dimColor onPress={() => update($, vue, x => ({ ...x, reponseA: 0 }))}>
+                <Text underline>annuler</Text>
+              </Button>
+            </Box>
+          ) : null}
+          {v.ecriture || cible ? (
+            <Box marginTop={cible ? 0 : 1} width="100%">
               {terminal ? <Text color={ACCENT} bold>{'› '}</Text> : ''}
               <Box flexGrow={1} flexDirection="column">
                 <Input
-                  key={`saisie-${v.ouvert || v.prive}-${v.envois}`}
-                  placeholder={v.prive ? `Écrire à ${v.nomPrive}` : `Écrire dans #${v.ouvert}`}
+                  key={`saisie-${v.ouvert || v.prive}-${v.envois}${cible ? `-${cible.id}` : ''}`}
+                  placeholder={cible ? `Répondre à ${cible.auteur}` : v.prive ? `Écrire à ${v.nomPrive}` : `Écrire dans #${v.ouvert}`}
                   value=""
                   autoFocus
                   rows={2}
