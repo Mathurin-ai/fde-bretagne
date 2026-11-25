@@ -29,6 +29,9 @@ export type Vue = {
   // La liste « Écrire à un membre », quand elle est dépliée à la place du fil.
   annuaire: Membre[]
   annuaireOuvert: boolean
+  // Combien de membres répondent à la recherche, et le mot cherché.
+  annuaireTotal: number
+  annuaireMot: string
   ditPrive: string
   messages: Message[]
   note: string

@@ -12,11 +12,11 @@ import type { Canal, Membre, Message, Prive, Reaction, Vue } from '../types'
 const SITE = 'https://fde-bretagne.fr'
 const PANNEAU = 'fde-bretagne'
 const VIDE: Vue = {
-  etat: 'vide', code: '', url: '', canaux: [], prives: [], ouvert: '', prive: 0, nomPrive: '', ditPrive: '', annuaire: [], annuaireOuvert: false, messages: [], note: '', avis: '',
+  etat: 'vide', code: '', url: '', canaux: [], prives: [], ouvert: '', prive: 0, nomPrive: '', ditPrive: '', annuaire: [], annuaireOuvert: false, annuaireTotal: 0, annuaireMot: '', messages: [], note: '', avis: '',
   ecriture: false, emojis: [], choix: 0, envois: 0, prenom: '', jour: 0, decalage: 0,
 }
 
-const vue = atom({ plugin: 'fde-bretagne', key: 'vue' } as const, VIDE, { shape: 'vue-6' })
+const vue = atom({ plugin: 'fde-bretagne', key: 'vue' } as const, VIDE, { shape: 'vue-7' })
 
 // Deuxième filet, après celui du serveur : aucun caractère de commande ne va au terminal.
 const propre = (t: unknown) => String(t ?? '').replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
@@ -148,8 +148,8 @@ async function ouvrirPrive($: any, membre: number) {
 }
 
 // Déplier la liste des membres à qui écrire, à la place du fil.
-async function ouvrirAnnuaire($: any) {
-  const r = await appeler($, '/api/membres')
+async function ouvrirAnnuaire($: any, mot = '') {
+  const r = await appeler($, `/api/membres${mot.trim() ? `?q=${encodeURIComponent(mot.trim().slice(0, 60))}` : ''}`)
   if (r.status === 401) return demander($)
   if (r.status !== 200) return update($, vue, v => ({ ...v, avis: 'Le site ne répond pas. Réessayez.' }))
   const annuaire: Membre[] = (Array.isArray(r.donnees.membres) ? r.donnees.membres : []).map((m: Membre) => ({
@@ -157,7 +157,7 @@ async function ouvrirAnnuaire($: any) {
     nom: propre(m.nom),
     sert_a: propre(m.sert_a),
   }))
-  await update($, vue, v => ({ ...v, annuaire, annuaireOuvert: true, avis: '' }))
+  await update($, vue, v => ({ ...v, annuaire, annuaireOuvert: true, annuaireTotal: Number(r.donnees.total) || annuaire.length, annuaireMot: propre(r.donnees.q), avis: '' }))
 }
 
 // Recharger ce qui est ouvert, canal ou conversation.
@@ -334,7 +334,7 @@ export const register: Register = on => {
 
     if (v.etat === 'attente') {
       return (
-        <Box flexDirection="column">
+        <Box flexDirection="column" paddingX={1}>
           {entete}
           <Text bold>Brancher ce panneau</Text>
           <Text>Ouvrez cette adresse, connectez-vous au site, et acceptez si le code est le même :</Text>
@@ -350,7 +350,7 @@ export const register: Register = on => {
 
     if (v.etat !== 'pret') {
       return (
-        <Box flexDirection="column">
+        <Box flexDirection="column" paddingX={1}>
           {entete}
           <Text>{v.avis || 'Les canaux du groupe, sans quitter le terminal.'}</Text>
           <Box marginTop={1}>
@@ -361,7 +361,7 @@ export const register: Register = on => {
     }
 
     const actuel = v.canaux.find(c => c.canal === v.ouvert)
-    const colonnes = Math.max(24, e.props.bodyColumns ?? 60)
+    const colonnes = Math.max(24, (e.props.bodyColumns ?? 60) - 2)
     const lignes = (texte: string, retrait = 0) =>
       texte.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil((l.length + retrait) / colonnes)), 0)
     const hauteur = (m: Message) =>
@@ -393,7 +393,7 @@ export const register: Register = on => {
     const pas = Math.max(1, fin - debut)
 
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" paddingX={1}>
         <Box marginBottom={1}>
           {logo}
           <Box flexDirection="column" flexGrow={1}>
@@ -434,9 +434,23 @@ export const register: Register = on => {
               <Text bold color={ACCENT}>✉ Écrire à un membre</Text>
               <Text dimColor>{'  Une conversation à deux, que les autres ne voient pas.'}</Text>
             </Text>
+            <Box marginTop={1}>
+              {terminal ? <Text color={ACCENT} bold>{'› '}</Text> : ''}
+              <Box flexGrow={1} flexDirection="column">
+                <Input
+                  key={`chercher-${v.annuaireMot}`}
+                  placeholder={`Chercher par nom ou par activité${terminal ? ', Entrée pour chercher' : ''}`}
+                  value={v.annuaireMot}
+                  submitLabel="Chercher"
+                  onSubmit={mot => { void ouvrirAnnuaire($, mot) }}
+                />
+              </Box>
+            </Box>
             {v.annuaire.length === 0 && (
               <Box marginTop={1}>
-                <Text dimColor italic>Vous êtes la première personne ici. Les autres membres apparaîtront dans cette liste.</Text>
+                <Text dimColor italic>
+                  {v.annuaireMot ? `Aucun membre ne répond à « ${v.annuaireMot} ».` : 'Vous êtes la première personne ici. Les autres membres apparaîtront dans cette liste.'}
+                </Text>
               </Box>
             )}
             <Box flexDirection="column" marginTop={1}>
@@ -447,6 +461,9 @@ export const register: Register = on => {
                 </Button>
               ))}
             </Box>
+            {v.annuaireTotal > v.annuaire.length ? (
+              <Text dimColor italic>{`${v.annuaireTotal - v.annuaire.length} autres membres. Précisez la recherche pour les voir.`}</Text>
+            ) : null}
           </Box>
         ) : (
           <Box flexDirection="column">
