@@ -1,4 +1,6 @@
 export type Canal = { canal: string; nom: string; sert_a: string; messages: number; nouveaux: number }
+// Une conversation privée en cours : l'autre membre, et ce qu'on n'a pas lu.
+export type Prive = { membre: number; nom: string; nouveaux: number }
 export type Reaction = { emoji: string; n: number; moi: boolean }
 export type Message = {
   id?: number
@@ -17,7 +19,12 @@ export type Vue = {
   code: string
   url: string
   canaux: Canal[]
+  prives: Prive[]
+  // Le canal ouvert, ou '' quand c'est une conversation privée (prive porte alors l'identifiant de l'autre membre).
   ouvert: string
+  prive: number
+  nomPrive: string
+  ditPrive: string
   messages: Message[]
   note: string
   avis: string

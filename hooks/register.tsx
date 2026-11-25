@@ -3,20 +3,20 @@
 // Le panneau ne passe pas par le connecteur : ce qu'un connecteur rend, le modèle peut le lire. Il demande son
 // propre accès au site (le membre l'accepte dans son navigateur en comparant un code), puis lit et écrit par
 // $.http.fetch. Rien ici n'appelle $.session.append ni ne rend de texte au modèle : les messages des autres
-// membres sont dessinés pour la personne, et pour elle seule.
+// membres, dans les canaux comme en privé, sont dessinés pour la personne, et pour elle seule.
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Canal, Message, Reaction, Vue } from '../types'
+import type { Canal, Message, Prive, Reaction, Vue } from '../types'
 
 const SITE = 'https://fde-bretagne.fr'
 const PANNEAU = 'fde-bretagne'
 const VIDE: Vue = {
-  etat: 'vide', code: '', url: '', canaux: [], ouvert: '', messages: [], note: '', avis: '',
+  etat: 'vide', code: '', url: '', canaux: [], prives: [], ouvert: '', prive: 0, nomPrive: '', ditPrive: '', messages: [], note: '', avis: '',
   ecriture: false, emojis: [], choix: 0, envois: 0, prenom: '', jour: 0, decalage: 0,
 }
 
-const vue = atom({ plugin: 'fde-bretagne', key: 'vue' } as const, VIDE, { shape: 'vue-4' })
+const vue = atom({ plugin: 'fde-bretagne', key: 'vue' } as const, VIDE, { shape: 'vue-5' })
 
 // Deuxième filet, après celui du serveur : aucun caractère de commande ne va au terminal.
 const propre = (t: unknown) => String(t ?? '').replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
@@ -81,12 +81,8 @@ const enCanaux = (liste: unknown): Canal[] =>
     nouveaux: Number(c.nouveaux) || 0,
   }))
 
-async function ouvrirCanal($: any, cle: string) {
-  if (!cle) return
-  const r = await appeler($, `/api/canaux/${encodeURIComponent(cle)}`)
-  if (r.status === 401) return demander($)
-  if (r.status !== 200) return update($, vue, v => ({ ...v, avis: 'Le site ne répond pas. Réessayez.' }))
-  const messages: Message[] = (r.donnees.messages ?? []).map((m: Message) => ({
+const enMessages = (liste: unknown): Message[] =>
+  (Array.isArray(liste) ? liste : []).map((m: Message) => ({
     ...(m.id ? { id: Number(m.id) } : {}),
     jour: propre(m.jour),
     heure: propre(m.heure),
@@ -97,9 +93,22 @@ async function ouvrirCanal($: any, cle: string) {
     ...(m.points ? { points: m.points.map(propre) } : {}),
     ...(m.reactions ? { reactions: m.reactions.map((x: Reaction) => ({ emoji: propre(x.emoji), n: Number(x.n) || 0, moi: !!x.moi })) } : {}),
   }))
+
+const enPrives = (liste: unknown): Prive[] =>
+  (Array.isArray(liste) ? liste : []).map((c: Prive) => ({ membre: Number(c.membre) || 0, nom: propre(c.nom), nouveaux: Number(c.nouveaux) || 0 }))
+
+async function ouvrirCanal($: any, cle: string) {
+  if (!cle) return
+  const r = await appeler($, `/api/canaux/${encodeURIComponent(cle)}`)
+  if (r.status === 401) return demander($)
+  if (r.status !== 200) return update($, vue, v => ({ ...v, avis: 'Le site ne répond pas. Réessayez.' }))
+  const messages = enMessages(r.donnees.messages)
   await update($, vue, v => ({
     ...v,
     ouvert: cle,
+    prive: 0,
+    nomPrive: '',
+    ditPrive: '',
     messages,
     note: propre(r.donnees.note),
     ecriture: !!r.donnees.ecriture,
@@ -113,6 +122,37 @@ async function ouvrirCanal($: any, cle: string) {
   $.clock.after(200, () => $.ui.scroll({ in: PANNEAU, to: 'start' }))
 }
 
+// Ouvrir la conversation privée avec un membre. La lire, c'est l'avoir lue.
+async function ouvrirPrive($: any, membre: number) {
+  if (!membre) return
+  const r = await appeler($, `/api/prives/${membre}`)
+  if (r.status === 401) return demander($)
+  if (r.status !== 200) return update($, vue, v => ({ ...v, avis: 'Le site ne répond pas. Réessayez.' }))
+  const messages = enMessages(r.donnees.messages)
+  await update($, vue, v => ({
+    ...v,
+    ouvert: '',
+    prive: membre,
+    nomPrive: propre(r.donnees.nom),
+    ditPrive: propre(r.donnees.sert_a),
+    messages,
+    note: propre(r.donnees.note),
+    ecriture: !!r.donnees.ecriture,
+    emojis: [],
+    avis: '',
+    choix: 0,
+    decalage: 0,
+    prives: v.prives.map(c => (c.membre === membre ? { ...c, nouveaux: 0 } : c)),
+  }))
+  $.clock.after(200, () => $.ui.scroll({ in: PANNEAU, to: 'start' }))
+}
+
+// Recharger ce qui est ouvert, canal ou conversation.
+async function rouvrir($: any) {
+  const v = await read($, vue)
+  return v.prive ? ouvrirPrive($, v.prive) : ouvrirCanal($, v.ouvert)
+}
+
 async function charger($: any) {
   const r = await appeler($, '/api/canaux')
   if (r.status === 401) return demander($)
@@ -120,8 +160,12 @@ async function charger($: any) {
   const canaux = enCanaux(r.donnees.canaux)
   const avant = await read($, vue)
   const jour = new Date(await $.clock.now()).getDate()
-  await update($, vue, v => ({ ...v, etat: 'pret' as const, code: '', url: '', canaux, avis: '', prenom: propre(r.donnees.membre), jour }))
-  await ouvrirCanal($, avant.ouvert || canaux.find(c => c.nouveaux)?.canal || canaux[0]?.canal || '')
+  const prives = enPrives(r.donnees.prives)
+  await update($, vue, v => ({ ...v, etat: 'pret' as const, code: '', url: '', canaux, prives, avis: '', prenom: propre(r.donnees.membre), jour }))
+  if (avant.prive) return ouvrirPrive($, avant.prive)
+  // Un canal archivé entre-temps n'est plus dans la liste : on retombe sur le premier.
+  const garde = canaux.some(c => c.canal === avant.ouvert) ? avant.ouvert : ''
+  await ouvrirCanal($, garde || canaux.find(c => c.nouveaux)?.canal || canaux[0]?.canal || '')
 }
 
 // La relève de fond, pour le bandeau : les compteurs seulement, et jamais de demande d'accès.
@@ -129,28 +173,28 @@ async function relever($: any) {
   const r = await appeler($, '/api/canaux')
   if (r.status !== 200) return
   const canaux = enCanaux(r.donnees.canaux)
-  await update($, vue, v => ({ ...v, canaux }))
+  const prives = enPrives(r.donnees.prives)
+  await update($, vue, v => ({ ...v, canaux, prives }))
 }
 
 async function envoyer($: any, texte: string) {
   const v = await read($, vue)
-  if (!texte.trim() || !v.ouvert) return
-  const r = await appeler($, `/api/canaux/${encodeURIComponent(v.ouvert)}`, { texte })
+  if (!texte.trim() || (!v.ouvert && !v.prive)) return
+  const r = await appeler($, v.prive ? `/api/prives/${v.prive}` : `/api/canaux/${encodeURIComponent(v.ouvert)}`, { texte })
   if (r.status === 401) return demander($)
   if (r.status !== 200) return update($, vue, x => ({ ...x, avis: propre(r.donnees?.erreur) || "Le message n'est pas parti." }))
   await update($, vue, x => ({ ...x, envois: x.envois + 1 }))
-  $.ui.toast('Message parti dans #' + v.ouvert)
+  $.ui.toast(v.prive ? `Message parti pour ${v.nomPrive}` : `Message parti dans #${v.ouvert}`)
   // Le champ vient d'être redessiné vide : on y remet le curseur, pour enchaîner.
   const suite = await read($, vue)
-  $.clock.after(250, () => $.ui.focus({ requestId: PANNEAU, key: `saisie-${suite.ouvert}-${suite.envois}` }))
-  await ouvrirCanal($, v.ouvert)
+  $.clock.after(250, () => $.ui.focus({ requestId: PANNEAU, key: `saisie-${suite.ouvert || suite.prive}-${suite.envois}` }))
+  await rouvrir($)
 }
 
 async function reagir($: any, message: number, emoji: string) {
-  const v = await read($, vue)
   const r = await appeler($, `/api/messages/${message}/reaction`, { emoji })
   if (r.status === 401) return demander($)
-  await ouvrirCanal($, v.ouvert)
+  await rouvrir($)
 }
 
 // Demander un accès : le site rend un code à comparer et une adresse à ouvrir dans le navigateur.
@@ -189,11 +233,13 @@ async function retirer($: any): Promise<boolean> {
   return true
 }
 
-async function montrer($: any, cle: string) {
+// Ouvrir le panneau, sur un canal, sur une conversation privée, ou là où on l'avait laissé.
+async function montrer($: any, cle: string, prive = 0) {
   await $.ui.open({ id: PANNEAU, title: 'FDE Bretagne', focus: true })
   const v = await read($, vue)
+  if (v.etat === 'pret' && prive) return ouvrirPrive($, prive)
   if (v.etat === 'pret' && cle) return ouvrirCanal($, cle)
-  await update($, vue, x => ({ ...x, ouvert: cle || x.ouvert }))
+  await update($, vue, x => (prive ? { ...x, prive, ouvert: '' } : { ...x, ouvert: cle || x.ouvert, prive: cle ? 0 : x.prive }))
   await charger($)
 }
 
@@ -214,18 +260,23 @@ export const register: Register = on => {
     return { text: 'Panneau FDE Bretagne ouvert.', isTextDisplayOnly: true }
   })
 
-  // Le bandeau : une ligne au-dessus de l'invite quand un canal a du nouveau. Des compteurs, jamais de texte.
+  // Le bandeau : une ligne au-dessus de l'invite quand il y a du nouveau. Des compteurs, jamais de texte.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const v = await read($, vue)
     const neufs = v.canaux.filter(c => c.nouveaux > 0)
-    if (e.props.hasSurvey || neufs.length === 0) return next(e)
+    const prives = v.prives.filter(c => c.nouveaux > 0)
+    if (e.props.hasSurvey || (neufs.length === 0 && prives.length === 0)) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
-    const resume = neufs.slice(0, 3).map(c => `${c.nouveaux} dans #${c.canal}`).join(', ')
+    const nPrives = prives.reduce((n, c) => n + c.nouveaux, 0)
+    const resume = [
+      ...(nPrives ? [`${nPrives} message${nPrives > 1 ? 's privés' : ' privé'}`] : []),
+      ...neufs.slice(0, 3).map(c => `${c.nouveaux} dans #${c.canal}`),
+    ].join(', ')
 
     return (
       <Box>
         <Text dimColor>FDE Bretagne : {resume}{neufs.length > 3 ? '…' : ''}  </Text>
-        <Button key="voir" label="Voir" onPress={() => montrer($, neufs[0]?.canal ?? '')} />
+        <Button key="voir" label="Voir" onPress={() => montrer($, prives.length ? '' : neufs[0]?.canal ?? '', prives[0]?.membre ?? 0)} />
       </Box>
     )
   })
@@ -304,7 +355,9 @@ export const register: Register = on => {
       2 + lignes(m.texte) + (m.cite ? 1 : 0) + (m.points ?? []).reduce((n, p) => n + lignes(p, 4), 0) +
       (m.id && v.emojis.length ? 1 : 0)
     // Ce qui ne bouge pas : l'en-tête et les canaux (6), le titre du canal, la saisie, le pied.
-    const fixe = 5 + lignes(`${v.ouvert}     ${actuel?.sert_a ?? ''}`) + (v.ecriture ? 3 : v.note ? 2 : 0) + 2
+    const intitule = v.prive ? v.nomPrive : v.ouvert
+    const sousTitre = v.prive ? v.ditPrive || 'Message privé' : actuel?.sert_a ?? ''
+    const fixe = 5 + (v.prives.length ? 1 : 0) + lignes(`${intitule}     ${sousTitre}`) + (v.ecriture ? 3 : v.note ? 2 : 0) + 2
     const place = Math.max(5, (e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30) - fixe)
     // La fenêtre sur le fil : les derniers messages qui tiennent, moins ceux qu'on a laissés en dessous en remontant.
     const fin = Math.max(Math.min(1, v.messages.length), v.messages.length - v.decalage)
@@ -346,11 +399,24 @@ export const register: Register = on => {
                 </Button>
               ))}
             </Box>
+            {v.prives.length ? (
+              <Box flexWrap="wrap" columnGap={1}>
+                <Text dimColor>✉</Text>
+                {v.prives.slice(0, 6).map((c, i) => (
+                  <Button key={`prive-${c.membre}`} hotkey={'abcdef'.charAt(i)} plain onPress={() => ouvrirPrive($, c.membre)}>
+                    <Text bold={c.membre === v.prive || c.nouveaux > 0} inverse={c.membre === v.prive} dimColor={c.membre !== v.prive && !c.nouveaux}>
+                      {` ${c.nom} `}
+                    </Text>
+                    {c.nouveaux ? <Text color={ROSE} bold>{`●${c.nouveaux}`}</Text> : ''}
+                  </Button>
+                ))}
+              </Box>
+            ) : null}
           </Box>
         </Box>
         <Text>
-          <Text bold color={ACCENT}>{SIGNES[v.ouvert] ?? '#'} {v.ouvert}</Text>
-          {actuel?.sert_a ? <Text dimColor>{`  ${actuel.sert_a}`}</Text> : ''}
+          <Text bold color={ACCENT}>{v.prive ? '✉' : SIGNES[v.ouvert] ?? '#'} {intitule}</Text>
+          {sousTitre ? <Text dimColor>{`  ${sousTitre}`}</Text> : ''}
         </Text>
         {v.avis ? <Text color={ROSE}>{v.avis}</Text> : null}
         {debut > 0 ? (
@@ -360,7 +426,7 @@ export const register: Register = on => {
         ) : null}
         {fil.length === 0 && (
           <Box marginTop={1}>
-            <Text dimColor italic>{VIDES[(v.ouvert.length + v.jour) % VIDES.length]}</Text>
+            <Text dimColor italic>{v.prive ? 'Aucun message pour l\'instant. Seuls vous deux verrez cette conversation.' : VIDES[(v.ouvert.length + v.jour) % VIDES.length]}</Text>
           </Box>
         )}
         {fil.map(ligne =>
@@ -422,8 +488,8 @@ export const register: Register = on => {
             {terminal ? <Text color={ACCENT} bold>{'› '}</Text> : ''}
             <Box flexGrow={1} flexDirection="column">
               <Input
-                key={`saisie-${v.ouvert}-${v.envois}`}
-                placeholder={terminal ? `Écrire dans #${v.ouvert}, Entrée pour envoyer` : `Écrire dans #${v.ouvert}`}
+                key={`saisie-${v.ouvert || v.prive}-${v.envois}`}
+                placeholder={`${v.prive ? `Écrire à ${v.nomPrive}` : `Écrire dans #${v.ouvert}`}${terminal ? ', Entrée pour envoyer' : ''}`}
                 value=""
                 autoFocus
                 rows={2}
@@ -437,7 +503,7 @@ export const register: Register = on => {
           <Button key="rafraichir" hotkey="r" plain dimColor onPress={() => charger($)}>
             <Text underline>Rafraîchir</Text>
           </Button>
-          <Link href={`${SITE}/canaux/${v.ouvert}`} label="Ouvrir sur le site" />
+          <Link href={v.prive ? `${SITE}/prives/${v.prive}` : `${SITE}/canaux/${v.ouvert}`} label="Ouvrir sur le site" />
         </Box>
       </Box>
     )

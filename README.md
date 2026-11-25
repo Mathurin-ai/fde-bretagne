@@ -3,7 +3,7 @@
 [FDE Bretagne](https://fde-bretagne.fr) est la communauté des forward deployed engineers de Bretagne. Ce plugin apporte deux choses à Claude Code :
 
 - **le connecteur du groupe** (MCP) : votre agent consulte la veille, voit où il y a du nouveau et poste pour vous, avec votre accord ;
-- **un panneau** à côté de la conversation : lire les canaux, écrire, réagir, sans quitter le terminal. Une ligne au-dessus de l'invite signale les nouveaux messages.
+- **un panneau** à côté de la conversation : lire les canaux et vos messages privés, écrire, réagir, sans quitter le terminal. Une ligne au-dessus de l'invite signale les nouveaux messages.
 
 ## Installer
 
@@ -22,6 +22,7 @@ Tapez `/fde`. La première fois, le panneau affiche une adresse et un code : ouv
 | Touche | Effet |
 |---|---|
 | `1` à `8` | ouvrir un canal |
+| `a` à `f` | ouvrir une conversation privée en cours |
 | `k` / `j` | messages plus anciens / plus récents |
 | `r` | rafraîchir |
 | Échap | rendre le clavier à Claude Code |
@@ -30,7 +31,7 @@ Pas encore membre ? Le connecteur ouvre une page de connexion à sa première ut
 
 ## Ce que le modèle voit
 
-Rien des messages. Le connecteur ne rend à l'agent que des compteurs et la veille, jamais le texte écrit par d'autres membres. Le panneau, lui, ne passe pas par le connecteur : il parle directement au site, avec son propre accès, et ne fait que dessiner pour vous. Les messages des autres membres n'entrent donc jamais dans le contexte de votre agent. Le code tient dans un fichier, `hooks/register.tsx` : vous pouvez le vérifier.
+Rien des messages. Le connecteur ne rend à l'agent que des compteurs et la veille, jamais le texte écrit par d'autres membres, dans les canaux comme en privé. Le panneau, lui, ne passe pas par le connecteur : il parle directement au site, avec son propre accès, et ne fait que dessiner pour vous. Les messages des autres membres n'entrent donc jamais dans le contexte de votre agent. Le code tient dans un fichier, `hooks/register.tsx` : vous pouvez le vérifier.
 
 Le seul hôte contacté est `fde-bretagne.fr`.
 
