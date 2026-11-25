@@ -259,9 +259,9 @@ async function montrer($: any, cle: string, prive = 0) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'fde', description: 'Ouvrir les canaux de FDE Bretagne dans un panneau' })
-    // Toutes les trois minutes, voir s'il y a du nouveau. Sans accès déjà accordé, la relève ne fait rien.
+    // Toutes les minutes, voir s'il y a du nouveau. Sans accès déjà accordé, la relève ne fait rien.
     void relever($)
-    $.clock.every(180000, () => relever($))
+    $.clock.every(60000, () => relever($))
 
     return next(e)
   })
@@ -369,6 +369,8 @@ export const register: Register = on => {
       (m.id && v.emojis.length ? 1 : 0)
     // Ce qui ne bouge pas : l'en-tête et les canaux (6), le titre du canal, la saisie, le pied.
     const intitule = v.prive ? v.nomPrive : v.ouvert
+    // Ce qui est arrivé dans ce qu'on a sous les yeux depuis qu'on l'a ouvert : la relève le compte, sans le marquer lu.
+    const arrives = v.prive ? v.prives.find(c => c.membre === v.prive)?.nouveaux ?? 0 : actuel?.nouveaux ?? 0
     const sousTitre = v.prive ? v.ditPrive || 'Message privé' : actuel?.sert_a ?? ''
     const fixe = 6 + lignes(`${intitule}     ${sousTitre}`) + (v.ecriture ? 3 : v.note ? 2 : 0) + 2
     const place = Math.max(5, (e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30) - fixe)
@@ -472,6 +474,12 @@ export const register: Register = on => {
             {sousTitre ? <Text dimColor>{`  ${sousTitre}`}</Text> : ''}
           </Text>
           {v.avis ? <Text color={ROSE}>{v.avis}</Text> : null}
+          {arrives ? (
+            <Button key="arrives" hotkey="n" plain onPress={() => rouvrir($)}>
+              <Text color={ROSE} bold>{`● ${arrives} nouveau${arrives > 1 ? 'x messages' : ' message'}`}</Text>
+              <Text underline>{'  afficher'}</Text>
+            </Button>
+          ) : null}
           {debut > 0 ? (
             <Button key="avant" hotkey="k" plain dimColor onPress={() => update($, vue, x => ({ ...x, decalage: Math.min(x.messages.length - 1, x.decalage + pas) }))}>
               <Text underline>{`↑ ${debut} plus ancien${debut > 1 ? 's' : ''}`}</Text>
