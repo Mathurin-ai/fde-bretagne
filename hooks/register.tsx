@@ -45,6 +45,14 @@ const VIDES = [
   'Silence radio. Lancez le premier message.',
 ]
 
+// Le logo du site, pour les surfaces qui dessinent des images : l'hermine et ses trois points sur fond sombre.
+const LOGO_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="64" height="64" shape-rendering="crispEdges">' +
+  '<rect width="16" height="16" rx="3" fill="#1f1e1c"/>' +
+  '<rect x="7" y="2" width="2" height="1" fill="#f5a65b"/><rect x="5" y="4" width="2" height="1" fill="#ee7f8f"/><rect x="9" y="4" width="2" height="1" fill="#8eb4e8"/>' +
+  '<g fill="#f6f2ea"><rect x="7" y="6" width="2" height="2"/><rect x="6" y="8" width="4" height="2"/><rect x="5" y="10" width="6" height="2"/>' +
+  '<rect x="4" y="12" width="2" height="1"/><rect x="7" y="12" width="2" height="2"/><rect x="10" y="12" width="2" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="11" y="13" width="1" height="1"/></g></svg>'
+
 let minuterie: { cancel: () => void } | undefined
 
 async function appeler($: any, chemin: string, corps?: unknown) {
@@ -221,11 +229,17 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANNEAU }, async ($, e) => {
-    const { Box, Text, Button, Link, Input } = $.ui.resolve(e)
+    const elements = $.ui.resolve(e)
+    const { Box, Text, Button, Link, Input } = elements
     const v = await read($, vue)
+    const terminal = e.surface === 'terminal'
 
     // L'hermine du logo, en demi-blocs : trois points de couleur, puis la moucheture.
-    const logo = (
+    const logo = 'Svg' in elements ? (
+      <Box marginRight={2} flexShrink={0}>
+        <elements.Svg source={LOGO_SVG} alt="Logo de FDE Bretagne" width={44} height={44} />
+      </Box>
+    ) : (
       <Box flexDirection="column" width={5} flexShrink={0} marginRight={2}>
         <Text wrap="truncate">
           <Text color={ROSE}>{' ▄'}</Text>
@@ -364,7 +378,7 @@ export const register: Register = on => {
                 <Text dimColor>  · {p}</Text>
               ))}
               {ligne.m?.id && v.emojis.length ? (
-                <Box gap={2}>
+                <Box gap={2} marginTop={terminal ? 0 : 1}>
                   {(ligne.m.reactions ?? []).map(x => (
                     <Button key={`r-${ligne.m?.id}-${x.emoji}`} plain onPress={() => reagir($, ligne.m?.id as number, x.emoji)}>
                       <Text color={x.moi ? CIEL : undefined} bold={x.moi}>{`${x.emoji} ${x.n}`}</Text>
@@ -403,11 +417,11 @@ export const register: Register = on => {
         ) : null}
         {v.ecriture ? (
           <Box marginTop={1} width="100%">
-            {e.surface === 'terminal' ? <Text color={ABRICOT} bold>{'› '}</Text> : ''}
+            {terminal ? <Text color={ABRICOT} bold>{'› '}</Text> : ''}
             <Box flexGrow={1} flexDirection="column">
               <Input
                 key={`saisie-${v.ouvert}-${v.envois}`}
-                placeholder={e.surface === 'terminal' ? `Écrire dans #${v.ouvert}, Entrée pour envoyer` : `Écrire dans #${v.ouvert}`}
+                placeholder={terminal ? `Écrire dans #${v.ouvert}, Entrée pour envoyer` : `Écrire dans #${v.ouvert}`}
                 value=""
                 autoFocus
                 rows={2}
