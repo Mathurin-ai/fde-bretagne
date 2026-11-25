@@ -22,10 +22,12 @@ const vue = atom({ plugin: 'fde-bretagne', key: 'vue' } as const, VIDE, { shape:
 const propre = (t: unknown) => String(t ?? '').replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
 
 // Les couleurs du site. Le blanc de l'hermine reste la couleur du texte du terminal, clair ou sombre.
-const ABRICOT = '#f5a65b'
+// Le jaune du groupe. Pour du texte, on prend la couleur d'avertissement du thème, lisible en clair comme en sombre.
+const JAUNE = '#ffd23f'
+const ACCENT = 'warning'
 const ROSE = '#ee7f8f'
 const CIEL = '#8eb4e8'
-const TEINTES = [ABRICOT, ROSE, CIEL, '#b7a6f0']
+const TEINTES = [ACCENT, ROSE, CIEL, '#b7a6f0']
 const SIGNES: Record<string, string> = {
   annonces: '📣', veille: '🔭', presentations: '👋', 'en-production': '🚀',
   outillage: '🧰', entraide: '🛟', missions: '💼', rencontres: '🍻',
@@ -49,7 +51,7 @@ const VIDES = [
 const LOGO_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="64" height="64" shape-rendering="crispEdges">' +
   '<rect width="16" height="16" rx="3" fill="#1f1e1c"/>' +
-  '<rect x="7" y="2" width="2" height="1" fill="#f5a65b"/><rect x="5" y="4" width="2" height="1" fill="#ee7f8f"/><rect x="9" y="4" width="2" height="1" fill="#8eb4e8"/>' +
+  '<rect x="7" y="2" width="2" height="1" fill="#ffd23f"/><rect x="5" y="4" width="2" height="1" fill="#ee7f8f"/><rect x="9" y="4" width="2" height="1" fill="#8eb4e8"/>' +
   '<g fill="#f6f2ea"><rect x="7" y="6" width="2" height="2"/><rect x="6" y="8" width="4" height="2"/><rect x="5" y="10" width="6" height="2"/>' +
   '<rect x="4" y="12" width="2" height="1"/><rect x="7" y="12" width="2" height="2"/><rect x="10" y="12" width="2" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="11" y="13" width="1" height="1"/></g></svg>'
 
@@ -243,7 +245,7 @@ export const register: Register = on => {
       <Box flexDirection="column" width={5} flexShrink={0} marginRight={2}>
         <Text wrap="truncate">
           <Text color={ROSE}>{' ▄'}</Text>
-          <Text color={ABRICOT}>{'▀'}</Text>
+          <Text color={JAUNE}>{'▀'}</Text>
           <Text color={CIEL}>{'▄ '}</Text>
         </Text>
         <Text wrap="truncate">{' ▟█▙ '}</Text>
@@ -253,7 +255,7 @@ export const register: Register = on => {
     const titre = (
       <Text>
         <Text bold>FDE Bretagne</Text>
-        <Text color={ABRICOT}>{v.prenom ? `  Demat, ${v.prenom} !` : '  Demat !'}</Text>
+        <Text color={ACCENT}>{v.prenom ? `  Demat, ${v.prenom} !` : '  Demat !'}</Text>
       </Text>
     )
     const entete = (
@@ -274,7 +276,7 @@ export const register: Register = on => {
           <Text>Ouvrez cette adresse, connectez-vous au site, et acceptez si le code est le même :</Text>
           <Box marginY={1} flexDirection="column">
             <Link href={v.url} label={v.url} />
-            <Text bold color={ABRICOT}>{v.code}</Text>
+            <Text bold color={ACCENT}>{v.code}</Text>
           </Box>
           <Text dimColor>Le panneau se met à jour tout seul une fois la demande acceptée.</Text>
           <Button key="fait" hotkey="r" plain label="J'ai accepté" onPress={() => retirer($)} />
@@ -347,7 +349,7 @@ export const register: Register = on => {
           </Box>
         </Box>
         <Text>
-          <Text bold color={ABRICOT}>{SIGNES[v.ouvert] ?? '#'} {v.ouvert}</Text>
+          <Text bold color={ACCENT}>{SIGNES[v.ouvert] ?? '#'} {v.ouvert}</Text>
           {actuel?.sert_a ? <Text dimColor>{`  ${actuel.sert_a}`}</Text> : ''}
         </Text>
         {v.avis ? <Text color={ROSE}>{v.avis}</Text> : null}
@@ -417,7 +419,7 @@ export const register: Register = on => {
         ) : null}
         {v.ecriture ? (
           <Box marginTop={1} width="100%">
-            {terminal ? <Text color={ABRICOT} bold>{'› '}</Text> : ''}
+            {terminal ? <Text color={ACCENT} bold>{'› '}</Text> : ''}
             <Box flexGrow={1} flexDirection="column">
               <Input
                 key={`saisie-${v.ouvert}-${v.envois}`}
