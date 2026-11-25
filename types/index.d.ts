@@ -9,6 +9,8 @@ export type Message = {
   jour: string
   heure: string
   auteur: string
+  // L'identifiant de l'auteur, quand on peut lui écrire en privé (pas pour ses propres messages).
+  membre?: number
   teinte?: number
   texte: string
   cite?: string

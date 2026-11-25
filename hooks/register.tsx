@@ -85,6 +85,7 @@ const enMessages = (liste: unknown): Message[] =>
     jour: propre(m.jour),
     heure: propre(m.heure),
     auteur: propre(m.auteur),
+    ...(m.membre ? { membre: Number(m.membre) } : {}),
     teinte: Number(m.teinte) || 0,
     texte: propre(m.texte),
     ...(m.cite ? { cite: propre(m.cite) } : {}),
@@ -520,10 +521,16 @@ export const register: Register = on => {
               </Box>
             ) : (
               <Box flexDirection="column" marginTop={1}>
-                <Text>
-                  <Text bold color={TEINTES[(ligne.m?.teinte ?? 0) % TEINTES.length]}>{ligne.m?.auteur}</Text>
+                <Box>
+                  {ligne.m?.membre ? (
+                    <Button key={`auteur-${ligne.m.id}`} plain onPress={() => ouvrirPrive($, ligne.m?.membre as number)}>
+                      <Text bold color={TEINTES[(ligne.m.teinte ?? 0) % TEINTES.length]}>{ligne.m.auteur}</Text>
+                    </Button>
+                  ) : (
+                    <Text bold color={TEINTES[(ligne.m?.teinte ?? 0) % TEINTES.length]}>{ligne.m?.auteur}</Text>
+                  )}
                   <Text dimColor>  {ligne.m?.heure}</Text>
-                </Text>
+                </Box>
                 {ligne.m?.cite ? <Text dimColor>│ {ligne.m.cite}</Text> : null}
                 <Text>{ligne.m?.texte}</Text>
                 {(ligne.m?.points ?? []).map(p => (
