@@ -1,0 +1,5 @@
+{
+  "name": "fde-bretagne",
+  "owner": { "name": "Mathurin" },
+  "plugins": [{ "name": "fde-bretagne", "source": "./" }]
+}
